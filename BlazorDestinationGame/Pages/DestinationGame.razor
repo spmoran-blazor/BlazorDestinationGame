@@ -1,0 +1,198 @@
+﻿@page "/"
+@inject IJSRuntime JSRuntime
+@using System.Threading;
+@using System.Text;
+@using Model;
+@using Data;
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-12 text-center">
+            <h3 id="gameTitle">Name the Famous Destination</h3>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12" style=""><img class="d-block mx-auto img-thumbnail" src=@_currentDestination.LocationImage></div>
+    </div>
+    <div class="row text-center">
+        <div class="col-md-4">&nbsp;</div>
+        <div class="col-md-4 mt-4" style="">
+
+            @if (!_isPresenting)
+            {
+                <div class="btn-group btn-group-vertical text-center w-100">
+                    @for (var i = 0; i < _answers.Count; i++)
+                    {
+                        <button type="button" class=@_defaultButtonClass>
+                            @_answers[i]&nbsp;
+                            @if (@_answers[i] == @_currentDestination.LocationDescription)
+                            {
+                                <i class=@_rightAnswerClass />
+                            }
+                            else
+                            {
+                                <i class=@_wrongAnswerClass />
+                            }
+
+                        </button>
+                    }
+                </div>
+            }
+
+            <div class="btn-group btn-group-vertical text-center w-100" style=@_showAnswers>
+                <button type="button" class=@_defaultButtonClass onclick="@(e => CheckAnswer(e, _answers[0]))">
+                    @_answers[0]&nbsp;<i class="fa-fw pull-right">&nbsp;</i>
+                </button>
+                <button type="button" class=@_defaultButtonClass onclick="@(e => CheckAnswer(e, _answers[1]))">
+                    @_answers[1]&nbsp;<i class="fa-fw pull-right">&nbsp;</i>
+                </button>
+                <button type="button" class=@_defaultButtonClass onclick="@(e => CheckAnswer(e, _answers[2]))">
+                    @_answers[2]&nbsp;<i class="fa-fw pull-right">&nbsp;</i>
+                </button>
+            </div>
+            <div class="col-md-4">&nbsp;</div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">&nbsp;</div>
+        <div class="col-md-4">
+            <span class="text-center">
+                <button type="button" class="btn btn-danger mb-2 rounded w-100" onclick="@NextAction">@_nextLabel</button>
+            </span>
+        </div>
+        <div class="col-md-4"></div>
+    </div>
+    <div class="row text-center">
+        <div class="col-md-3">&nbsp;</div>
+        <div class="col-md-6 mt-2" style="">
+            <span class="pull-right mr-5 ml-2" style="font-weight:bold;text-align:center">@_score</span><span id="gameScore" class="pull-right">Current Score:</span>
+
+            <div class="col-md-3">&nbsp;</div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    List<Destination> _destinationsList = new List<Destination>();
+    List<string> _answers = new List<string>();
+    Destination _currentDestination = null;
+    int _destinationCount = 0;
+    int _score = 0;
+    string _defaultButtonClass = "btn btn-outline-primary mb-2 rounded";
+    string _rightAnswerClass = "fa fa-check pull-right";
+    string _wrongAnswerClass = "fa fa-times pull-right";
+    string _showAnswers = "display:none;";
+    string _nextLabel = "Start Over";
+    bool _isPresenting = true;
+
+
+    protected override void OnInit()
+    {
+        StartGame();
+    }
+
+    protected int GetRandomNumber()
+    {
+        Random rand = new Random();
+        return rand.Next(0, 3);
+    }
+
+    protected void ShuffleAnswers()
+    {
+        _answers.Clear();
+        _answers.Add(_currentDestination.WrongAnswer1);
+        _answers.Add(_currentDestination.WrongAnswer2);
+        _answers.Insert(GetRandomNumber(), _currentDestination.LocationDescription);
+    }
+
+    protected void CheckAnswer(UIMouseEventArgs args, string answer)
+    {
+        _nextLabel = "Next Question";
+        _isPresenting = false;
+        _showAnswers = "display:none;";
+        if (answer == _currentDestination.LocationDescription)
+        {
+            _score += 5;
+        }
+
+        _destinationCount++;
+
+        if (_destinationCount == _destinationsList.Count)
+        {
+            _nextLabel = "Play Again";
+            NotifyUser(3);
+        }
+    }
+
+    public async void NotifyUser(int action)
+    {
+        if (action == 1)
+        {
+            await JSRuntime.InvokeAsync<string>(
+                    "JsFunctions.alertifyNotificationSuccess",
+                    "Correct! The location is " + @_currentDestination.LocationDescription + ", which is located in " + @_currentDestination.Location);
+        }
+        else if (action == 2)
+        {
+            await JSRuntime.InvokeAsync<string>(
+                "JsFunctions.alertifyNotificationError",
+                "Sorry! The location is " + @_currentDestination.LocationDescription + ", which is located in " + @_currentDestination.Location);
+        }
+        else if (action == 3)
+        {
+            await JSRuntime.InvokeAsync<string>(
+                  "JsFunctions.alertifyConfirmGameOver",
+                  BuildDialogContent());
+        }
+    }
+
+    public void NextAction()
+    {
+        if (_destinationCount <= _destinationsList.Count - 1)
+        {
+            NextQuestion();
+        }
+        else
+        {
+            StartGame();
+        }
+    }
+    public void NextQuestion()
+    {
+        _isPresenting = true;
+        _showAnswers = string.Empty;
+        _currentDestination = _destinationsList[_destinationCount];
+        ShuffleAnswers();
+    }
+
+    public void StartGame()
+    {
+        Destinations destinations = new Destinations(out List<Destination> destinationsList);
+        _isPresenting = true;
+        _showAnswers = string.Empty;
+        _destinationsList = destinationsList;
+        _destinationCount = 0;
+        _score = 0;
+        _currentDestination = _destinationsList[_destinationCount];
+        ShuffleAnswers();
+    }
+
+    protected string BuildDialogContent()
+    {
+        StringBuilder sb = new StringBuilder();
+        foreach(var destination in _destinationsList)
+        {
+            sb.Append("<div>");
+            sb.Append("<p>" + destination.LocationDescription + " is in " + destination.Location + "</p>");
+            sb.Append("</div>");
+
+        }
+            sb.Append("<div>&nbsp;</div>");
+            sb.Append("<div>");
+            sb.Append("<p>" + "You scored " + _score + " out of 25");
+            sb.Append("</div>");
+
+        return sb.ToString();
+    }
+
+}
